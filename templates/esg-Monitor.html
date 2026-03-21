@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Pulso — Monitor</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #000000;
+        overflow: hidden;
+        font-family: "Courier New", monospace;
+      }
+      canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        display: block;
+        z-index: 2;
+      }
+      /* Grid SVG overlay */
+      .grid {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .ui {
+        position: fixed;
+        top: 0;
+        right: 0;
+        padding: 18px 24px;
+        z-index: 10;
+        text-align: right;
+      }
+      .controls {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        padding: 18px 24px;
+        z-index: 10;
+        text-align: right;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .controls:hover {
+        opacity: 1;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #00ff00;
+        display: inline-block;
+        margin-bottom: 5px;
+        box-shadow: 0 0 8px #00ff00;
+      }
+      .ui-num {
+        font-size: 42px;
+        font-weight: 700;
+        color: #00ff33;
+        line-height: 1;
+        letter-spacing: -2px;
+        text-shadow: 0 0 18px #00ff0088;
+      }
+      .ui-lbl {
+        font-size: 13px;
+        color: #1a4a1a;
+        letter-spacing: 4px;
+        margin-top: 4px;
+      }
+      .btn-group {
+        margin-top: 20px;
+      }
+      button {
+        border: none;
+        padding: 5px 10px;
+        margin: 2px;
+        cursor: pointer;
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Grid fundo verde escuro como monitor real -->
+    <svg
+      class="grid"
+      viewBox="0 0 1600 900"
+      preserveAspectRatio="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <!-- Grade grande (5mm equiv) -->
+        <pattern id="g1" width="60" height="60" patternUnits="userSpaceOnUse">
+          <path
+            d="M 60 0 L 0 0 0 60"
+            fill="none"
+            stroke="#00ff00"
+            stroke-width="0.9"
+            opacity="0.25"
+          />
+        </pattern>
+        <!-- Grade pequena (1mm equiv) -->
+        <pattern id="g2" width="12" height="12" patternUnits="userSpaceOnUse">
+          <path
+            d="M 12 0 L 0 0 0 12"
+            fill="none"
+            stroke="#00ff00"
+            stroke-width="0.4"
+            opacity="0.20"
+          />
+        </pattern>
+      </defs>
+      <rect width="1600" height="900" fill="url(#g2)" />
+      <rect width="1600" height="900" fill="url(#g1)" />
+    </svg>
+
+    <canvas id="c"></canvas>
+
+    <div class="ui">
+      <div class="dot" id="dot"></div>
+      <div class="ui-num" id="bn">72</div>
+      <div class="ui-lbl">BPM</div>
+    </div>
+
+    <div class="controls">
+      <div class="btn-group">
+        <button
+          id="toggleGridBtn"
+          onclick="toggleGrid()"
+          style="background: rgba(255, 255, 255, 0.08); color: #d0ffd0"
+        >
+          Grid
+        </button>
+        <div id="stateButtons" style="display: block; margin-top: 6px">
+          <button
+            onclick="setState('saudavel')"
+            style="background: rgba(0, 255, 0, 0.18); color: #0f0"
+          >
+            S
+          </button>
+          <button
+            onclick="setState('alto')"
+            style="background: rgba(255, 136, 0, 0.18); color: #f80"
+          >
+            A
+          </button>
+          <button
+            onclick="setState('critico')"
+            style="background: rgba(255, 85, 0, 0.18); color: #f50"
+          >
+            C
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const canvas = document.getElementById("c");
+        const ctx = canvas.getContext("2d");
+        const bnEl = document.getElementById("bn");
+        const dotEl = document.getElementById("dot");
+
+        let W = window.innerWidth;
+        let H = window.innerHeight;
+        let pts = [];
+
+        function setSize() {
+          W = window.innerWidth;
+          H = window.innerHeight;
+          canvas.width = W;
+          canvas.height = H;
+          pts = [];
+        }
+        setSize();
+        window.addEventListener("resize", setSize);
+
+        // ─── ECG real: P-QRS-T ───────────────────────────────────
+        // f ∈ [0, 1) = posição no ciclo cardíaco
+        // Retorna amplitude normalizada em [-1, 1]
+        function ecgWave(f) {
+          if (f < 0.05) return 0;
+          if (f < 0.15) return 0.08 * Math.sin(((f - 0.05) / 0.1) * Math.PI);
+          if (f < 0.22) return 0;
+          if (f < 0.255)
+            return -0.15 * Math.sin(((f - 0.22) / 0.035) * Math.PI);
+          if (f < 0.275) return -0.15 + 1.95 * ((f - 0.255) / 0.02);
+          if (f < 0.295) return 1.8 - 2.5 * ((f - 0.275) / 0.02);
+          if (f < 0.345) return -0.7 + 0.7 * ((f - 0.295) / 0.05);
+          if (f < 0.43) {
+            const x = (f - 0.345) / 0.085;
+            return -0.02 * Math.cos(x * Math.PI * 3) * (1 - x);
+          }
+          if (f < 0.66) return 0.22 * Math.sin(((f - 0.43) / 0.23) * Math.PI);
+          return 0;
+        }
+
+        function gauss(x, mu, sigma) {
+          const d = x - mu;
+          return Math.exp(-(d * d) / (2 * sigma * sigma));
+        }
+        // ────────────────────────────────────────────────────────────
+
+        let phase = 0;
+        let dispBPM = 72;
+        let targBPM = 72;
+        let LC = "#00ff00";
+        let lastNow = null;
+        let blinkSpd = 1.0;
+        let blinkT = 0;
+
+        const states = {
+          saudavel: { bpm: 72, color: "#00ff00", bs: 1.0 },
+          alto: { bpm: 120, color: "#ff8800", bs: 0.5 },
+          critico: { bpm: 150, color: "#ff5500", bs: 0.25 },
+        };
+
+        function setState(state) {
+          const s = states[state];
+          targBPM = s.bpm;
+          LC = s.color;
+          blinkSpd = s.bs;
+          bnEl.style.color = LC;
+          bnEl.style.textShadow = "0 0 24px " + LC + "88";
+          dotEl.style.background = LC;
+          dotEl.style.boxShadow = "0 0 8px " + LC;
+        }
+        window.setState = setState;
+        setState("saudavel");
+
+        let gridEnabled = true;
+        function toggleGrid() {
+          gridEnabled = !gridEnabled;
+          document.querySelector(".grid").style.display = gridEnabled
+            ? "block"
+            : "none";
+          document.getElementById("toggleGridBtn").textContent = gridEnabled
+            ? "Grid"
+            : "Sem Grid";
+        }
+        window.toggleGrid = toggleGrid;
+
+        // Amplitude vertical: usa ~55% da altura para a onda
+        const AMP_SCALE = 0.13;
+        const CENTER_Y_RATIO = 0.52; // ligeiramente abaixo do centro (baseline)
+
+        function tick(now) {
+          if (!lastNow) lastNow = now;
+          const dt = Math.min((now - lastNow) / 1000, 0.05);
+          lastNow = now;
+
+          // Interpolação suave do BPM
+          dispBPM += (targBPM - dispBPM) * 0.012;
+          bnEl.textContent = Math.round(dispBPM);
+
+          // Piscar dot
+          blinkT += dt / blinkSpd;
+          const ba = 0.5 + 0.5 * Math.sin(blinkT * Math.PI * 2);
+          dotEl.style.opacity = String(0.2 + 0.8 * ba);
+          dotEl.style.boxShadow = "0 0 " + 8 * ba + "px " + LC;
+
+          // Avança fase (ciclos por segundo = BPM/60)
+          phase += (dispBPM / 60) * dt;
+
+          // Gera novos pontos proporcional à velocidade de rolagem
+          // ~180px/s é uma velocidade natural de ECG (25mm/s × 7.2 px/mm)
+          const scrollPx = 180 * dt;
+          const newPts = Math.max(1, Math.round(scrollPx));
+
+          for (let i = 0; i < newPts; i++) {
+            const ph = phase - (dispBPM / 60) * dt * (1 - (i + 1) / newPts);
+            const f = ((ph % 1) + 1) % 1;
+            const amplitude = ecgWave(f);
+            pts.push(H * CENTER_Y_RATIO - amplitude * H * AMP_SCALE);
+          }
+
+          // Mantém só o necessário para preencher a tela
+          if (pts.length > W) pts = pts.slice(pts.length - W);
+
+          // ── Render ──────────────────────────────────────────────
+          ctx.clearRect(0, 0, W, H);
+          ctx.fillStyle = gridEnabled
+            ? "rgba(2, 6, 2, 0.22)"
+            : "rgba(2, 6, 2, 1.0)"; // sem grid = fundo escuro opaco
+          ctx.fillRect(0, 0, W, H);
+
+          if (pts.length < 2) {
+            requestAnimationFrame(tick);
+            return;
+          }
+
+          const startX = pts.length >= W ? 0 : W - pts.length;
+
+          // 1) Glow externo largo
+          ctx.beginPath();
+          ctx.moveTo(startX, pts[0]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(startX + i, pts[i]);
+          ctx.strokeStyle = LC + "22";
+          ctx.lineWidth = 14;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+
+          // 2) Glow médio
+          ctx.beginPath();
+          ctx.moveTo(startX, pts[0]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(startX + i, pts[i]);
+          ctx.strokeStyle = LC + "55";
+          ctx.lineWidth = 5;
+          ctx.stroke();
+
+          // 3) Linha principal
+          ctx.beginPath();
+          ctx.moveTo(startX, pts[0]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(startX + i, pts[i]);
+          ctx.strokeStyle = LC;
+          ctx.lineWidth = 2.4;
+          ctx.shadowBlur = 4;
+          ctx.shadowColor = LC;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // 4) Núcleo branco brilhante
+          ctx.beginPath();
+          ctx.moveTo(startX, pts[0]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(startX + i, pts[i]);
+          ctx.strokeStyle = "rgba(255,255,230,0.55)";
+          ctx.lineWidth = 0.9;
+          ctx.stroke();
+
+          // 5) Ponto na ponta
+          const tipX = startX + pts.length - 1;
+          const tipY = pts[pts.length - 1];
+          ctx.beginPath();
+          ctx.arc(tipX, tipY, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = "#ffffff";
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = LC;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          requestAnimationFrame(tick);
+        }
+
+        requestAnimationFrame(tick);
+      })();
+    </script>
+  </body>
+</html>
