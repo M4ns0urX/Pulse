@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pulse — Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070707; --panel:#0e0e0e; --panel2:#121212; --border:#1a1a1a;
+  --text:#c8c8c8; --dim:#3a3a3a; --dimmer:#222;
+  --green:#3a8a58; --amber:#b07820; --red:#c03838; --blue:#3a6aaa;
+  --mono:'DM Mono',monospace; --sans:'DM Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+
+/* ── LAYOUT ── */
+.shell{
+  display:grid;
+  grid-template-columns:1fr 240px;
+  grid-template-rows:42px 1fr 148px;
+  height:100vh;
+}
+
+/* ── HEADER ── */
+header{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;border-bottom:1px solid var(--border);background:var(--panel);
+  flex-shrink:0;
+}
+.brand{display:flex;align-items:center;gap:9px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:hb 2s ease-in-out infinite}
+@keyframes hb{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.9);opacity:.3}}
+.bname{font-family:var(--mono);font-size:12px;letter-spacing:.22em}
+
+.hstats{display:flex;align-items:stretch;height:100%}
+.hstat{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 12px;border-left:1px solid var(--border);min-width:52px;
+}
+.hv{font-family:var(--mono);font-size:22px;line-height:1}
+.hl{font-size:7px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
+
+.hright{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:9px;color:var(--dim)}
+#wss{transition:color .3s}
+
+/* ── MAPA ── */
+.maparea{
+  position:relative;overflow:hidden;background:var(--bg);
+  /* mapa ocupa todo o espaço disponível */
+}
+#mc{display:block;width:100%;height:100%}
+.map-hint{
+  position:absolute;bottom:7px;right:8px;
+  font-family:var(--mono);font-size:7px;color:var(--dimmer);letter-spacing:.08em;
+}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  border-left:1px solid var(--border);background:var(--panel);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.slbl{
+  font-family:var(--mono);font-size:7px;letter-spacing:.22em;color:var(--dim);
+  padding:8px 10px 6px;border-bottom:1px solid var(--border);flex-shrink:0;
+  text-transform:uppercase;display:flex;justify-content:space-between;
+}
+.ssub{color:var(--red);font-size:7px}
+
+.wlist{overflow-y:auto;flex:1;padding:3px 4px}
+.wlist::-webkit-scrollbar{width:2px}
+.wlist::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* separador de grupo */
+.wsep{
+  font-family:var(--mono);font-size:7px;letter-spacing:.15em;color:var(--dim);
+  padding:5px 6px 3px;text-transform:uppercase;
+  display:flex;align-items:center;gap:6px;
+}
+.wsep::after{content:'';flex:1;height:1px;background:var(--border)}
+.wsep.crit{color:var(--red)}.wsep.warn{color:var(--amber)}.wsep.norm{color:var(--dimmer)}
+
+/* worker card */
+.wcard{
+  padding:7px 8px;border-radius:2px;margin-bottom:2px;
+  border-left:2px solid var(--dimmer);cursor:pointer;
+  transition:background .1s;
+}
+.wcard:hover{background:#161616}
+.wcard.sel{outline:1px solid rgba(58,106,170,.5)}
+.wcard.ATENÇÃO {border-left-color:var(--amber);animation:pa 2s ease-in-out infinite}
+.wcard.URGENTE {border-left-color:var(--amber);animation:pa 1.2s ease-in-out infinite}
+.wcard.CRÍTICO {border-left-color:var(--red);animation:pc .8s ease-in-out infinite}
+.wcard.invisivel{opacity:.28}
+@keyframes pa{0%,100%{box-shadow:none}50%{box-shadow:inset 0 0 0 1px rgba(176,120,32,.2)}}
+@keyframes pc{0%,100%{background:transparent}50%{background:rgba(192,56,56,.05)}}
+
+/* linha 1 */
+.w1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.wid{font-family:var(--mono);font-size:10px;font-weight:500}
+.wid.NORMAL {color:var(--blue)}
+.wid.ATENÇÃO,.wid.URGENTE{color:var(--amber)}
+.wid.CRÍTICO{color:var(--red)}
+.wnm{font-size:8px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+
+/* badge */
+.wbadge{font-family:var(--mono);font-size:7px;padding:2px 5px;border-radius:1px;text-align:right}
+.wbadge .bt{display:block;letter-spacing:.04em}
+.wbadge .bd{display:block;font-size:6px;opacity:.65;margin-top:1px}
+.wbadge.NORMAL {color:var(--dim)}
+.wbadge.ATENÇÃO{color:var(--amber);border:1px solid rgba(176,120,32,.25);background:rgba(176,120,32,.05)}
+.wbadge.URGENTE{color:var(--amber);border:1px solid rgba(176,120,32,.35);background:rgba(176,120,32,.08)}
+.wbadge.CRÍTICO{color:var(--red);border:1px solid rgba(192,56,56,.4);background:rgba(192,56,56,.08);animation:fl .9s step-end infinite}
+@keyframes fl{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* sensores — 3 boxes */
+.wsens{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:4px}
+.sb{
+  background:var(--panel2);border-radius:2px;
+  padding:3px 4px;display:flex;flex-direction:column;align-items:center;
+}
+.sb-l{font-size:6px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px}
+.sb-v{font-family:var(--mono);font-size:12px;line-height:1.1}
+.sb-v.ok{color:var(--text)}.sb-v.warn{color:var(--amber)}.sb-v.crit{color:var(--red)}
+
+/* linha 3: totem */
+.wtotem{font-family:var(--mono);font-size:7px;color:var(--dim);margin-bottom:3px}
+.wtotem b{color:var(--blue);font-weight:normal}
+.wtotem.sem{color:#333}
+
+/* botões */
+.wact{display:flex;gap:3px}
+.abtn{
+  font-family:var(--mono);font-size:6px;letter-spacing:.04em;
+  padding:2px 6px;border-radius:1px;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--dim);
+  transition:all .1s;flex:1;
+}
+.abtn:hover{border-color:var(--red);color:var(--red)}
+.abtn.fall:hover{border-color:var(--amber);color:var(--amber)}
+
+/* ── PAINEL INFERIOR ── */
+.bottom{
+  grid-column:1/-1;border-top:1px solid var(--border);
+  background:var(--panel);
+  display:grid;grid-template-columns:1fr 190px;
+  overflow:hidden;min-height:0;
+}
+
+/* alertas */
+.alerts-wrap{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.alist{overflow-y:auto;flex:1;padding:4px 8px}
+.alist::-webkit-scrollbar{width:2px}
+.alist::-webkit-scrollbar-thumb{background:var(--border)}
+.aitem{
+  display:grid;grid-template-columns:52px 58px 1fr;
+  gap:8px;align-items:center;
+  padding:3px 0;border-bottom:1px solid var(--dimmer);
+  animation:ain .2s ease;
+}
+@keyframes ain{from{opacity:0;transform:translateX(8px)}to{opacity:1}}
+.aitem:last-child{border-bottom:none}
+.ats{font-family:var(--mono);font-size:8px;color:var(--dim)}
+.awid{font-family:var(--mono);font-size:9px;font-weight:500}
+.awid.CRÍTICO{color:var(--red)}.awid.URGENTE,.awid.ATENÇÃO{color:var(--amber)}.awid.INFO{color:var(--blue)}
+.amsg{font-size:9px;color:var(--dim)}
+
+/* barra de prioridade no alerta */
+.abar{width:3px;height:100%;border-radius:1px;align-self:stretch;min-height:14px}
+.abar.CRÍTICO{background:var(--red)}.abar.URGENTE,.abar.ATENÇÃO{background:var(--amber)}.abar.INFO{background:var(--blue)}
+
+/* turno */
+.turno{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.turno-t{font-family:var(--mono);font-size:7px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;margin-bottom:2px}
+.trow{display:flex;justify-content:space-between;align-items:center}
+.trow-l{font-size:8px;color:var(--dim)}
+.trow-v{font-family:var(--mono);font-size:15px}
+
+/* ── MODAL ── */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:none;align-items:center;justify-content:center;z-index:200;
+}
+.overlay.open{display:flex}
+.modal{
+  background:var(--panel);border:1px solid #222;border-radius:3px;
+  padding:18px 20px;width:320px;position:relative;
+}
+.modal-x{
+  position:absolute;top:10px;right:12px;
+  font-family:var(--mono);font-size:10px;color:var(--dim);
+  cursor:pointer;border:none;background:none;
+  transition:color .1s;
+}
+.modal-x:hover{color:var(--text)}
+.modal h3{font-family:var(--mono);font-size:12px;color:var(--blue);margin-bottom:12px;letter-spacing:.1em}
+
+/* mini mapa no modal */
+.mini-map-wrap{
+  background:#060606;border:1px solid var(--border);border-radius:2px;
+  margin-bottom:12px;position:relative;overflow:hidden;
+}
+#mini-mc{display:block}
+
+.mrows{display:flex;flex-direction:column;gap:5px}
+.mrow{display:flex;justify-content:space-between;align-items:center}
+.ml{font-size:9px;color:var(--dim)}
+.mv{font-family:var(--mono);font-size:10px}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <span class="bname">PULSE</span>
+    </div>
+    <div class="hstats">
+      <div class="hstat"><span class="hv" id="cn" style="color:var(--text)">0</span><span class="hl">ativos</span></div>
+      <div class="hstat"><span class="hv" id="cv" style="color:var(--blue)">0</span><span class="hl">visíveis</span></div>
+      <div class="hstat"><span class="hv" id="cw" style="color:var(--amber)">0</span><span class="hl">atenção</span></div>
+      <div class="hstat"><span class="hv" id="cc" style="color:var(--red)">0</span><span class="hl">crítico</span></div>
+      <div class="hstat"><span class="hv" id="ci" style="color:var(--dimmer)">0</span><span class="hl">imóveis</span></div>
+    </div>
+    <div class="hright">
+      <span id="wss" style="color:var(--red)">●</span> ws
+      &nbsp;·&nbsp; <span id="clk">--:--:--</span>
+    </div>
+  </header>
+
+  <!-- MAPA -->
+  <div class="maparea" id="maparea">
+    <canvas id="mc"></canvas>
+    <div class="map-hint">clique no worker para detalhes</div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="slbl">
+      <span>braceletes</span>
+      <span class="ssub" id="sem-cnt"></span>
+    </div>
+    <div class="wlist" id="wlist"></div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="bottom">
+    <div class="alerts-wrap">
+      <div class="slbl">alertas em tempo real</div>
+      <div class="alist" id="alist"></div>
+    </div>
+    <div class="turno">
+      <div class="turno-t">turno</div>
+      <div class="trow"><span class="trow-l">duração</span><span class="trow-v" id="t-dur" style="color:var(--dim)">--:--</span></div>
+      <div class="trow"><span class="trow-l">⚠ quedas</span><span class="trow-v" id="t-q" style="color:var(--amber)">0</span></div>
+      <div class="trow"><span class="trow-l">🚨 pânicos</span><span class="trow-v" id="t-p" style="color:var(--red)">0</span></div>
+      <div class="trow"><span class="trow-l">📡 sem sinal</span><span class="trow-v" id="t-s" style="color:var(--dim)">0</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal()">✕</button>
+    <h3 id="m-id">BRC-001</h3>
+    <div class="mini-map-wrap">
+      <canvas id="mini-mc" width="280" height="120"></canvas>
+    </div>
+    <div class="mrows">
+      <div class="mrow"><span class="ml">Nome</span><span class="mv" id="m-nome"></span></div>
+      <div class="mrow"><span class="ml">SpO₂</span><span class="mv" id="m-spo2"></span></div>
+      <div class="mrow"><span class="ml">BPM</span><span class="mv" id="m-bpm"></span></div>
+      <div class="mrow"><span class="ml">Bateria</span><span class="mv" id="m-bat"></span></div>
+      <div class="mrow"><span class="ml">Status</span><span class="mv" id="m-status"></span></div>
+      <div class="mrow"><span class="ml">No status</span><span class="mv" id="m-dur"></span></div>
+      <div class="mrow"><span class="ml">Totem atual</span><span class="mv" id="m-totem"></span></div>
+      <div class="mrow"><span class="ml">Último totem</span><span class="mv" id="m-ult"></span></div>
+      <div class="mrow"><span class="ml">Posição</span><span class="mv" id="m-pos"></span></div>
+      <div class="mrow"><span class="ml">Eventos</span><span class="mv" id="m-ev"></span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  ESTADO
+// ═══════════════════════════════════════════
+let workers=[], alertas=[], totens={}, turno={}, wsConn=null;
+let selectedWid=null;
+const trails={}, TRAIL=18;
+
+// Som
+const AC=window.AudioContext||window.webkitAudioContext;
+let ac=null;
+const prevCrit=new Set();
+function beep(f=880,d=0.18,v=0.14){
+  try{
+    if(!ac)ac=new AC();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.connect(g);g.connect(ac.destination);
+    o.frequency.value=f;
+    g.gain.setValueAtTime(v,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
+    o.start();o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+function checkSound(ws){
+  ws.forEach(w=>{
+    if(w.prioridade==='CRÍTICO'&&!prevCrit.has(w.id)){
+      beep(660,.2,.18);setTimeout(()=>beep(880,.15,.15),230);
+    }
+  });
+  prevCrit.clear();
+  ws.filter(w=>w.prioridade==='CRÍTICO').forEach(w=>prevCrit.add(w.id));
+}
+
+// ═══════════════════════════════════════════
+//  MAPA PRINCIPAL
+// ═══════════════════════════════════════════
+const canvas=document.getElementById('mc');
+const ctx=canvas.getContext('2d');
+
+function resize(){
+  const a=document.getElementById('maparea');
+  canvas.width=a.offsetWidth;
+  canvas.height=a.offsetHeight;
+}
+resize();
+window.addEventListener('resize',resize);
+
+// Margens para o mapa não ficar colado nas bordas
+const MX=0.04, MY=0.08;   // margem x e y relativa
+
+function rx(v){return (MX + v*(1-2*MX)) * canvas.width}
+function ry(v){return (MY + v*(1-2*MY)) * canvas.height}
+
+// Corredores
+const CORR=[
+  [0.04,0.55,0.88,0.55,20],[0.30,0.55,0.30,0.22,15],
+  [0.30,0.22,0.88,0.22,13],[0.55,0.55,0.55,0.80,15],
+  [0.55,0.80,0.88,0.80,13],[0.88,0.22,0.88,0.80,13],
+  [0.55,0.22,0.55,0.55,13],
+];
+const CHAM=[
+  {cx:0.08,cy:0.55,w:0.075,h:0.075,lbl:'Entrada'},
+  {cx:0.30,cy:0.55,w:0.075,h:0.075,lbl:'Câmara A'},
+  {cx:0.55,cy:0.55,w:0.075,h:0.075,lbl:'Cruzamento'},
+  {cx:0.88,cy:0.22,w:0.060,h:0.060,lbl:'Câmara B'},
+  {cx:0.88,cy:0.55,w:0.060,h:0.060,lbl:'Lavra'},
+  {cx:0.88,cy:0.80,w:0.060,h:0.060,lbl:'Câmara C'},
+];
+const TDEFS=[
+  {id:'T-01',x:0.08,y:0.55,r:0.10},{id:'T-02',x:0.20,y:0.55,r:0.10},
+  {id:'T-03',x:0.30,y:0.55,r:0.10},{id:'T-04',x:0.30,y:0.38,r:0.10},
+  {id:'T-05',x:0.30,y:0.22,r:0.10},{id:'T-06',x:0.55,y:0.55,r:0.10},
+  {id:'T-07',x:0.55,y:0.38,r:0.10},{id:'T-08',x:0.55,y:0.22,r:0.10},
+  {id:'T-09',x:0.72,y:0.55,r:0.10},{id:'T-10',x:0.88,y:0.22,r:0.10},
+  {id:'T-11',x:0.88,y:0.55,r:0.10},{id:'T-12',x:0.88,y:0.80,r:0.10},
+  {id:'T-13',x:0.55,y:0.68,r:0.10},{id:'T-14',x:0.55,y:0.80,r:0.10},
+];
+
+function wcol(p){return p==='CRÍTICO'?[192,56,56]:p==='URGENTE'||p==='ATENÇÃO'?[176,120,32]:[58,138,88]}
+
+function drawMap(){
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#060606';ctx.fillRect(0,0,W,H);
+
+  // textura rocha
+  ctx.fillStyle='#0a0a0a';
+  for(let i=0;i<400;i++){ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,Math.random()*1.0,0,Math.PI*2);ctx.fill()}
+
+  // corredores
+  CORR.forEach(([x1,y1,x2,y2,w])=>{
+    ctx.strokeStyle='#0d0d0d';ctx.lineWidth=w+10;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(rx(x1),ry(y1));ctx.lineTo(rx(x2),ry(y2));ctx.stroke();
+    ctx.strokeStyle='#1b1b1b';ctx.lineWidth=w;
+    ctx.beginPath();ctx.moveTo(rx(x1),ry(y1));ctx.lineTo(rx(x2),ry(y2));ctx.stroke();
+    ctx.strokeStyle='#242424';ctx.lineWidth=w*0.28;
+    ctx.beginPath();ctx.moveTo(rx(x1),ry(y1));ctx.lineTo(rx(x2),ry(y2));ctx.stroke();
+  });
+
+  // câmaras
+  CHAM.forEach(c=>{
+    const x=rx(c.cx)-rx(c.w)/2+rx(0)-rx(0),
+          y=ry(c.cy)-ry(c.h)/2+ry(0)-ry(0);
+    // usando rx/ry para tamanho relativo ao canvas
+    const cw=(c.w*(1-2*MX))*W, ch=(c.h*(1-2*MY))*H;
+    ctx.fillStyle='#1e1e1e';ctx.strokeStyle='#2a2a2a';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(rx(c.cx)-cw/2,ry(c.cy)-ch/2,cw,ch,4);ctx.fill();ctx.stroke();
+    if(c.lbl){
+      ctx.fillStyle='#303030';ctx.font="8px 'DM Mono'";ctx.textAlign='center';
+      ctx.fillText(c.lbl,rx(c.cx),ry(c.cy)+ch/2+11);
+    }
+  });
+
+  // totens
+  const now=Date.now();
+  TDEFS.forEach(t=>{
+    const td=totens[t.id]||{};
+    const crit=td.tem_critico,urg=td.tem_urgente;
+    const nw=td.workers_count||0;
+    const pulse=0.5+0.5*Math.sin(now/1100+t.x*9);
+    const [r,g,b]=crit?[192,56,56]:urg?[176,120,32]:[58,100,170];
+    const rad=t.r*(1-2*MX)*W;
+
+    ctx.strokeStyle=`rgba(${r},${g},${b},${0.10+pulse*0.08})`;
+    ctx.lineWidth=1.5;ctx.setLineDash([4,5]);
+    ctx.beginPath();ctx.arc(rx(t.x),ry(t.y),rad,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=`rgba(${r},${g},${b},${0.02+pulse*0.012})`;
+    ctx.beginPath();ctx.arc(rx(t.x),ry(t.y),rad,0,Math.PI*2);ctx.fill();
+
+    ctx.fillStyle=`rgba(${r},${g},${b},0.75)`;
+    ctx.beginPath();ctx.arc(rx(t.x),ry(t.y),3.5,0,Math.PI*2);ctx.fill();
+
+    ctx.fillStyle=`rgba(${r},${g},${b},0.35)`;
+    ctx.font="7px 'DM Mono'";ctx.textAlign='center';
+    ctx.fillText(`${t.id}(${nw})`,rx(t.x),ry(t.y)-11);
+  });
+
+  // trilhas
+  Object.entries(trails).forEach(([wid,pts])=>{
+    if(pts.length<2)return;
+    const w=workers.find(w=>w.id===wid);
+    if(!w||!w.visivel)return;
+    const [r,g,b]=wcol(w.prioridade);
+    for(let i=1;i<pts.length;i++){
+      ctx.strokeStyle=`rgba(${r},${g},${b},${(i/pts.length)*0.42})`;
+      ctx.lineWidth=1.8;
+      ctx.beginPath();ctx.moveTo(rx(pts[i-1].x),ry(pts[i-1].y));ctx.lineTo(rx(pts[i].x),ry(pts[i].y));ctx.stroke();
+    }
+  });
+
+  // workers
+  workers.forEach(w=>{
+    const x=rx(w.x),y=ry(w.y);
+    const isSel=selectedWid===w.id;
+
+    if(!w.visivel){
+      ctx.fillStyle='rgba(50,50,50,0.18)';
+      ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+      return;
+    }
+
+    const [r,g,b]=wcol(w.prioridade);
+
+    if(isSel){
+      ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.arc(x,y,13,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    }
+
+    if(w.imobil){
+      const p=0.35+0.35*Math.sin(now/700);
+      ctx.strokeStyle=`rgba(${r},${g},${b},${p})`;ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x,y,9+p*4,0,Math.PI*2);ctx.stroke();
+    }
+
+    ctx.shadowColor=`rgb(${r},${g},${b})`;
+    ctx.shadowBlur=w.prioridade==='CRÍTICO'?22:w.prioridade==='NORMAL'?4:12;
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.beginPath();ctx.arc(x,y,w.imobil?6:5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+
+    if(w.queda||w.panico){ctx.font='10px serif';ctx.textAlign='center';ctx.fillText(w.panico?'🚨':'⚠',x+10,y-7)}
+
+    ctx.fillStyle=`rgba(${r},${g},${b},${w.prioridade==='NORMAL'?0.45:0.8})`;
+    ctx.font=`${isSel?'500 ':''}8px 'DM Mono'`;ctx.textAlign='center';
+    ctx.fillText(w.id.replace('BRC-',''),x,y-9);
+  });
+}
+
+function loop(){drawMap();requestAnimationFrame(loop)}
+loop();
+
+// clique no canvas
+canvas.addEventListener('click',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left,my=e.clientY-r.top;
+  let found=null,best=16;
+  workers.forEach(w=>{
+    if(!w.visivel)return;
+    const d=Math.hypot(rx(w.x)-mx,ry(w.y)-my);
+    if(d<best){best=d;found=w}
+  });
+  if(found){selectedWid=found.id;openModal(found);renderSidebar()}
+});
+
+// ═══════════════════════════════════════════
+//  MINI MAPA NO MODAL
+// ═══════════════════════════════════════════
+function drawMiniMap(worker){
+  const mc=document.getElementById('mini-mc');
+  const c=mc.getContext('2d');
+  const W=mc.width,H=mc.height;
+  c.clearRect(0,0,W,H);
+  c.fillStyle='#060606';c.fillRect(0,0,W,H);
+
+  const mx2=v=>(0.05+v*0.9)*W;
+  const my2=v=>(0.05+v*0.9)*H;
+
+  // corredores simplificados
+  CORR.forEach(([x1,y1,x2,y2])=>{
+    c.strokeStyle='#222';c.lineWidth=8;c.lineCap='round';
+    c.beginPath();c.moveTo(mx2(x1),my2(y1));c.lineTo(mx2(x2),my2(y2));c.stroke();
+    c.strokeStyle='#2a2a2a';c.lineWidth=4;
+    c.beginPath();c.moveTo(mx2(x1),my2(y1));c.lineTo(mx2(x2),my2(y2));c.stroke();
+  });
+
+  // totens
+  TDEFS.forEach(t=>{
+    c.fillStyle='rgba(58,100,170,0.4)';
+    c.beginPath();c.arc(mx2(t.x),my2(t.y),2.5,0,Math.PI*2);c.fill();
+  });
+
+  // todos os workers (posição)
+  workers.forEach(w=>{
+    if(!w.visivel)return;
+    const [r,g,b]=wcol(w.prioridade);
+    c.fillStyle=`rgba(${r},${g},${b},0.5)`;
+    c.beginPath();c.arc(mx2(w.x),my2(w.y),2.5,0,Math.PI*2);c.fill();
+  });
+
+  // worker selecionado — destaque
+  if(worker){
+    const [r,g,b]=wcol(worker.prioridade);
+    c.shadowColor=`rgb(${r},${g},${b})`;c.shadowBlur=12;
+    c.fillStyle=`rgb(${r},${g},${b})`;
+    c.beginPath();c.arc(mx2(worker.x),my2(worker.y),5,0,Math.PI*2);c.fill();
+    c.shadowBlur=0;
+    // círculo de localização
+    c.strokeStyle=`rgba(${r},${g},${b},0.5)`;c.lineWidth=1;
+    c.beginPath();c.arc(mx2(worker.x),my2(worker.y),12,0,Math.PI*2);c.stroke();
+  }
+}
+
+// ═══════════════════════════════════════════
+//  WEBSOCKET
+// ═══════════════════════════════════════════
+function conectar(){
+  wsConn=new WebSocket('ws://localhost:8765');
+  const el=document.getElementById('wss');
+  wsConn.onopen=()=>{el.style.color='var(--green)'};
+  wsConn.onmessage=e=>{
+    const d=JSON.parse(e.data);
+    checkSound(d.workers||[]);
+    workers=d.workers||[];alertas=d.alertas||[];totens=d.totens||{};turno=d.turno||{};
+    workers.forEach(w=>{
+      if(!trails[w.id])trails[w.id]=[];
+      if(w.visivel){trails[w.id].push({x:w.x,y:w.y});if(trails[w.id].length>TRAIL)trails[w.id].shift()}
+    });
+    // atualiza modal se aberto
+    if(selectedWid){
+      const sw=workers.find(w=>w.id===selectedWid);
+      if(sw)updateModal(sw);
+    }
+    renderSidebar();renderAlerts();updateHeader();updateTurno();
+  };
+  wsConn.onclose=()=>{el.style.color='var(--red)';setTimeout(conectar,2000)};
+  wsConn.onerror=()=>wsConn.close();
+}
+conectar();
+
+// ═══════════════════════════════════════════
+//  HEADER
+// ═══════════════════════════════════════════
+function fmtDur(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+function updateHeader(){
+  const vis=workers.filter(w=>w.visivel).length;
+  const warn=workers.filter(w=>w.prioridade==='URGENTE'||w.prioridade==='ATENÇÃO').length;
+  const crit=workers.filter(w=>w.prioridade==='CRÍTICO').length;
+  const imob=workers.filter(w=>w.imobil).length;
+  const sem=workers.filter(w=>!w.visivel).length;
+  document.getElementById('cn').textContent=workers.length;
+  document.getElementById('cv').textContent=vis;
+  document.getElementById('cw').textContent=warn;
+  document.getElementById('cc').textContent=crit;
+  document.getElementById('ci').textContent=imob;
+  document.getElementById('clk').textContent=new Date().toLocaleTimeString('pt-BR');
+  document.getElementById('sem-cnt').textContent=sem?`${sem} sem sinal`:'';
+}
+setInterval(()=>document.getElementById('clk').textContent=new Date().toLocaleTimeString('pt-BR'),1000);
+function updateTurno(){
+  document.getElementById('t-dur').textContent=turno.duracao||'--:--';
+  document.getElementById('t-q').textContent=turno.quedas??0;
+  document.getElementById('t-p').textContent=turno.panicos??0;
+  document.getElementById('t-s').textContent=turno.sem_sinal??0;
+}
+
+// ═══════════════════════════════════════════
+//  SIDEBAR com separadores por grupo
+// ═══════════════════════════════════════════
+function renderSidebar(){
+  const ord={CRÍTICO:0,URGENTE:1,ATENÇÃO:2,NORMAL:3};
+  const sorted=[...workers].sort((a,b)=>(ord[a.prioridade]??3)-(ord[b.prioridade]??3));
+
+  let html='', lastGrp='';
+  const grpLabel={CRÍTICO:'crítico',URGENTE:'urgente',ATENÇÃO:'atenção',NORMAL:'normal'};
+  const grpClass={CRÍTICO:'crit',URGENTE:'warn',ATENÇÃO:'warn',NORMAL:'norm'};
+
+  sorted.forEach(w=>{
+    const grp=w.prioridade;
+    if(grp!==lastGrp){
+      html+=`<div class="wsep ${grpClass[grp]}">${grpLabel[grp]}</div>`;
+      lastGrp=grp;
+    }
+    const sc=w.spo2<88?'crit':w.spo2<95?'warn':'ok';
+    const bc=(w.bpm>130||w.bpm<42)?'crit':w.bpm>95?'warn':'ok';
+    const tc=w.bat<8?'crit':w.bat<18?'warn':'ok';
+    const dur=w.status_dur>0?fmtDur(w.status_dur):'';
+    const totemStr=w.totem
+      ?`<b>${w.totem}</b>`
+      :`sem sinal${w.ultimo_totem?` · <b style="color:#444">${w.ultimo_totem}</b>`:''}`;
+    const isSel=selectedWid===w.id?'sel':'';
+    html+=`<div class="wcard ${w.prioridade} ${w.visivel?'':'invisivel'} ${isSel}" onclick="selectW('${w.id}')">
+      <div class="w1">
+        <div>
+          <div class="wid ${w.prioridade}">${w.id}${w.imobil?' ◉':''}</div>
+          <div class="wnm">${w.nome}</div>
+        </div>
+        <div class="wbadge ${w.prioridade}">
+          <span class="bt">${w.prioridade}</span>
+          ${dur?`<span class="bd">${dur}</span>`:''}
+        </div>
+      </div>
+      <div class="wsens">
+        <div class="sb"><span class="sb-l">SpO₂</span><span class="sb-v ${sc}">${w.spo2}%</span></div>
+        <div class="sb"><span class="sb-l">BPM</span><span class="sb-v ${bc}">${w.bpm}</span></div>
+        <div class="sb"><span class="sb-l">Bat</span><span class="sb-v ${tc}">${w.bat}%</span></div>
+      </div>
+      <div class="wtotem ${w.totem?'':'sem'}">${totemStr}</div>
+      <div class="wact">
+        <button class="abtn" onclick="cmd('panico','${w.id}');event.stopPropagation()">pânico</button>
+        <button class="abtn fall" onclick="cmd('queda','${w.id}');event.stopPropagation()">queda</button>
+      </div>
+    </div>`;
+  });
+  document.getElementById('wlist').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════
+//  ALERTAS com barra de cor
+// ═══════════════════════════════════════════
+function renderAlerts(){
+  document.getElementById('alist').innerHTML=alertas.map(a=>`
+    <div class="aitem">
+      <div class="abar ${a.prioridade||'INFO'}"></div>
+      <span class="ats">${a.ts}</span>
+      <span class="awid ${a.prioridade||'INFO'}">${a.wid}</span>
+      <span class="amsg">${a.mensagem}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
+function openModal(w){
+  updateModal(w);
+  document.getElementById('overlay').classList.add('open');
+}
+function updateModal(w){
+  document.getElementById('m-id').textContent=w.id;
+  document.getElementById('m-nome').textContent=w.nome;
+  document.getElementById('m-spo2').textContent=`${w.spo2}%`;
+  document.getElementById('m-bpm').textContent=`${w.bpm} bpm`;
+  document.getElementById('m-bat').textContent=`${w.bat}%`;
+  document.getElementById('m-status').textContent=w.prioridade;
+  document.getElementById('m-dur').textContent=fmtDur(w.status_dur||0);
+  document.getElementById('m-totem').textContent=w.totem||'sem cobertura';
+  document.getElementById('m-ult').textContent=w.ultimo_totem?`${w.ultimo_totem} · ${w.ultimo_totem_ts}`:'—';
+  document.getElementById('m-pos').textContent=`x:${w.x} · y:${w.y}`;
+  document.getElementById('m-ev').textContent=[w.queda?'queda':'',w.panico?'pânico':''].filter(Boolean).join(', ')||'nenhum';
+  drawMiniMap(w);
+}
+function closeModal(e){
+  if(!e||e.target===document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('open');
+}
+function selectW(wid){
+  selectedWid=wid;
+  const w=workers.find(w=>w.id===wid);
+  if(w)openModal(w);
+  renderSidebar();
+}
+function cmd(tipo,wid){
+  if(wsConn&&wsConn.readyState===WebSocket.OPEN)
+    wsConn.send(JSON.stringify({tipo,wid}));
+}
+</script>
+</body>
+</html>
